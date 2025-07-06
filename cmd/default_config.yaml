@@ -1,0 +1,25 @@
+# --- 并发配置 ---
+# dns_concurrency: 用于 DNS 解析的最大并发数。
+# 建议值: 30。
+dns_concurrency: 30
+
+# latency_test_concurrency: 用于延迟测试的最大并发数。
+# 建议值: 10。设置过高可能触发目标服务器的速率限制。
+latency_test_concurrency: 10
+
+# speedtest_concurrency: 用于下载速度测试的最大并发数。
+# 建议值：1-3。设置过高可能因抢占带宽导致测速不准。
+speedtest_concurrency: 1
+
+# --- 筛选配置 ---
+# max_latency: 延迟测试中允许的最大延迟（单位：毫秒）。
+# 超过此延迟的 IP 将被直接淘汰。
+max_latency: 300
+
+# top_n_per_region: 从每个地理区域中，选择延迟最低的前 N 个 IP 进入最终的速度测试。
+top_n_per_region: 5
+
+# --- IP 版本配置 ---
+# ip_version: 选择要测试的 IP 版本。
+# 可选值："ipv4" 或 "ipv6"。默认为 "ipv4"。
+ip_version: ipv4
