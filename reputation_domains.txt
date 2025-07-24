@@ -87,4 +87,3 @@ www.ge.com
 usa.visa.com
 squareup.com
 www.allianz.com
-app.alice.ws

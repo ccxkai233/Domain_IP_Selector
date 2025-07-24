@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -298,17 +297,12 @@ func groupResults(results []model.LatencyResult, groupBy string) map[string][]mo
 
 func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *config.Config, progressCb ProgressCallback) []SimplifiedResult {
 	var (
-		finalResults     []SimplifiedResult
-		wg               sync.WaitGroup
-		mu               sync.Mutex
-		discardedCounter int32 // 使用原子操作来安全地计数
+		finalResults []SimplifiedResult
+		wg           sync.WaitGroup
+		mu           sync.Mutex
 	)
 
-	const (
-		primaryTestURL   = "https://speed.cloudflare.com/__down?bytes=200000000"
-		secondaryTestURL = "https://cf.xiu2.xyz/url"
-	)
-	currentTestURL := primaryTestURL
+	const testURL = "https://speed.cloudflare.com/__down?bytes=200000000"
 
 	speedTestSemaphore := make(chan struct{}, cfg.SpeedTestConcurrency)
 
@@ -326,23 +320,9 @@ func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *c
 					break
 				}
 
-				// 检查是否需要切换URL
-				if atomic.LoadInt32(&discardedCounter) >= 10 {
-					mu.Lock()
-					if currentTestURL == primaryTestURL {
-						currentTestURL = secondaryTestURL
-						progressCb(fmt.Sprintf("警告: 已连续舍弃 %d 个低速IP，自动切换到备用测速地址: %s", atomic.LoadInt32(&discardedCounter), secondaryTestURL))
-					}
-					mu.Unlock()
-				}
-
-				mu.Lock()
-				urlToTest := currentTestURL
-				mu.Unlock()
-
 				speedTestSemaphore <- struct{}{}
 
-				speedRes, err := tester.TestDownloadSpeed(&net.IPAddr{IP: candidate.IPInfo.Address}, urlToTest, 10*time.Second, cfg.SpeedTestRateLimitMB)
+				speedRes, err := tester.TestDownloadSpeed(&net.IPAddr{IP: candidate.IPInfo.Address}, testURL, 10*time.Second, cfg.SpeedTestRateLimitMB)
 
 				<-speedTestSemaphore
 
@@ -355,12 +335,6 @@ func testSpeedsWithRetry(groupedResults map[string][]model.LatencyResult, cfg *c
 				speedInMBps := speedRes.DownloadSpeed / 1024 / 1024
 				if cfg.MinSpeed > 0 && speedInMBps < cfg.MinSpeed {
 					progressCb(fmt.Sprintf("IP %s 速度 %.2f MB/s 低于最低要求 %.2f MB/s, 已舍弃", candidate.IPInfo.Address, speedInMBps, cfg.MinSpeed))
-					mu.Lock()
-					isPrimaryURL := currentTestURL == primaryTestURL
-					mu.Unlock()
-					if isPrimaryURL {
-						atomic.AddInt32(&discardedCounter, 1)
-					}
 					continue // 速度不达标，继续下一个候选
 				}
 
